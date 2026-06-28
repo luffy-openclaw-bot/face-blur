@@ -1,4 +1,4 @@
-import type { UploadResponse, DetectResponse, ModelStatus } from '../types';
+import type { UploadResponse, DetectResponse, FaceRegion, ModelStatus } from '../types';
 
 const API_BASE = '/api';
 
@@ -51,7 +51,10 @@ export const api = {
     return handleResponse<DetectResponse>(response);
   },
 
-  async blurFaces(
+  /**
+   * Blur ALL faces in an image — re-detects with YuNet and blurs everything.
+   */
+  async blurAllFaces(
     imageId: string,
     threshold: number = 0.5,
     blurStrength: number = 25,
@@ -61,6 +64,30 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageId, threshold, blurStrength, padding }),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: response.statusText }));
+      throw new ApiError(response.status, body.message || response.statusText);
+    }
+
+    return response.blob();
+  },
+
+  /**
+   * Blur SELECTED faces only — takes an array of face regions from detection results.
+   * This is the preferred method for the web UI where users choose which faces to blur.
+   */
+  async blurSelectedFaces(
+    imageId: string,
+    faces: FaceRegion[],
+    blurStrength: number = 25,
+    padding: number = 0.3,
+  ): Promise<Blob> {
+    const response = await fetch(`${API_BASE}/blur-faces`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageId, faces, blurStrength, padding }),
     });
 
     if (!response.ok) {

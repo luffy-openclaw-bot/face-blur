@@ -20,6 +20,13 @@ export interface FaceDetection {
   confidence: number;
 }
 
+export interface FaceRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface DetectResult {
   width: number;
   height: number;
@@ -85,7 +92,7 @@ export class AiService {
   }
 
   /**
-   * Blur faces in an image using the Python script.
+   * Blur ALL faces in an image using YuNet detection.
    * Returns the output image buffer.
    */
   async blurFaces(
@@ -103,6 +110,42 @@ export class AiService {
       outputPath,
       '--threshold',
       String(threshold),
+      '--blur',
+      String(blurStrength),
+      '--padding',
+      String(padding),
+    ]);
+
+    const fs = await import('fs/promises');
+    const buffer = await fs.readFile(outputPath);
+
+    // Clean up temp file
+    await fs.unlink(outputPath).catch(() => {});
+
+    return buffer;
+  }
+
+  /**
+   * Blur SELECTED face regions only.
+   * Takes an array of face regions (from detection results) and blurs only those.
+   * Returns the output image buffer.
+   */
+  async blurSpecificFaces(
+    imageFilePath: string,
+    faces: FaceRegion[],
+    blurStrength: number = 25,
+    padding: number = 0.3,
+  ): Promise<Buffer> {
+    const outputPath = imageFilePath + '.blurred.jpg';
+    const regionsJson = JSON.stringify(faces);
+
+    await execFileAsync('python3', [
+      this.scriptPath,
+      'blur_regions',
+      imageFilePath,
+      outputPath,
+      '--regions',
+      regionsJson,
       '--blur',
       String(blurStrength),
       '--padding',

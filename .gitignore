@@ -33,4 +33,4 @@ uploads/
 npm-debug.log*
 
 # Test output
-output_*.jpg
+output_*.jpg__pycache__/

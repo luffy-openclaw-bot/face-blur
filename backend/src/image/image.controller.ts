@@ -15,7 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { UploadService } from './upload.service';
 import { BlurService } from './blur.service';
-import { AiService } from '../ai/ai.service';
+import { AiService, FaceRegion } from '../ai/ai.service';
 
 class DetectDto {
   imageId!: string;
@@ -25,6 +25,13 @@ class DetectDto {
 class BlurDto {
   imageId!: string;
   threshold?: number;
+  blurStrength?: number;
+  padding?: number;
+}
+
+class BlurFacesDto {
+  imageId!: string;
+  faces!: FaceRegion[];
   blurStrength?: number;
   padding?: number;
 }
@@ -89,7 +96,6 @@ export class ImageController {
       );
     }
 
-    const image = this.uploadService.getImage(imageId);
     const filePath = this.uploadService.getImageFilePath(imageId);
     const detections = await this.aiService.detectFaces(filePath, threshold);
 
@@ -100,8 +106,11 @@ export class ImageController {
     };
   }
 
+  /**
+   * Blur ALL faces — re-detects with YuNet, then blurs everything found.
+   */
   @Post('blur')
-  async blurFaces(@Body() body: BlurDto, @Res() res: Response) {
+  async blurAllFaces(@Body() body: BlurDto, @Res() res: Response) {
     const {
       imageId,
       threshold = 0.5,
@@ -119,6 +128,57 @@ export class ImageController {
     const resultBuffer = await this.aiService.blurFaces(
       filePath,
       threshold,
+      blurStrength,
+      padding,
+    );
+
+    res.set({
+      'Content-Type': 'image/jpeg',
+      'Content-Disposition': `inline; filename="blurred_${image.originalName}"`,
+      'Content-Length': resultBuffer.length,
+    });
+
+    res.send(resultBuffer);
+  }
+
+  /**
+   * Blur SELECTED faces only — takes an array of face regions from detection results.
+   * This allows the user to choose which faces to blur via the web UI or API.
+   */
+  @Post('blur-faces')
+  async blurSelectedFaces(@Body() body: BlurFacesDto, @Res() res: Response) {
+    const {
+      imageId,
+      faces,
+      blurStrength = 25,
+      padding = 0.3,
+    } = body;
+
+    if (!imageId) {
+      throw new HttpException('imageId is required', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!faces || !Array.isArray(faces) || faces.length === 0) {
+      throw new HttpException('faces array is required and must not be empty', HttpStatus.BAD_REQUEST);
+    }
+
+    // Validate each face region has required fields
+    for (const face of faces) {
+      if (typeof face.x !== 'number' || typeof face.y !== 'number' ||
+          typeof face.width !== 'number' || typeof face.height !== 'number') {
+        throw new HttpException(
+          'Each face must have x, y, width, height as numbers',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    const filePath = this.uploadService.getImageFilePath(imageId);
+    const image = this.uploadService.getImage(imageId);
+
+    const resultBuffer = await this.aiService.blurSpecificFaces(
+      filePath,
+      faces,
       blurStrength,
       padding,
     );

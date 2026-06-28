@@ -3,7 +3,7 @@ import { ImageUploader } from './components/ImageUploader';
 import { DetectionCanvas } from './components/DetectionCanvas';
 import { BlurResult } from './components/BlurResult';
 import { api } from './services/api';
-import type { FaceDetection, ProcessingStep, UploadResponse } from './types';
+import type { FaceDetection, ProcessingStep, UploadResponse, FaceRegion } from './types';
 
 function App() {
   const [step, setStep] = useState<ProcessingStep>('upload');
@@ -87,14 +87,29 @@ function App() {
   const handleBlur = useCallback(async () => {
     if (!uploadData) return;
 
+    // Get selected face regions (bbox coordinates)
+    const selectedFaces: FaceRegion[] = detections
+      .filter((d) => selectedIds.has(d.id))
+      .map((d) => ({
+        x: d.bbox.x,
+        y: d.bbox.y,
+        width: d.bbox.width,
+        height: d.bbox.height,
+      }));
+
+    if (selectedFaces.length === 0) {
+      setError('請至少選擇一個面部進行模糊處理');
+      return;
+    }
+
     setError(null);
     setIsBlurring(true);
     setStep('blur');
 
     try {
-      const blob = await api.blurFaces(
+      const blob = await api.blurSelectedFaces(
         uploadData.imageId,
-        threshold,
+        selectedFaces,
         blurStrength,
         padding,
       );
@@ -107,7 +122,7 @@ function App() {
     } finally {
       setIsBlurring(false);
     }
-  }, [uploadData, threshold, blurStrength, padding]);
+  }, [uploadData, detections, selectedIds, blurStrength, padding]);
 
   const handleDownload = useCallback(() => {
     if (!blurredBlob || !uploadData) return;
@@ -201,23 +216,6 @@ function App() {
                   <span className="text-sm text-[var(--text-muted)] w-12 text-right">{threshold}</span>
                 </div>
               </div>
-
-              <div>
-                <label className="text-sm font-semibold block mb-2">面部框擴展 (padding)</label>
-                <p className="text-xs text-[var(--text-muted)] mb-2">控制模糊範圍超出面部邊界幾多</p>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min="0"
-                    max="0.6"
-                    step="0.05"
-                    value={padding}
-                    onChange={(e) => setPadding(Number(e.target.value))}
-                    className="flex-1 accent-[var(--primary)]"
-                  />
-                  <span className="text-sm text-[var(--text-muted)] w-12 text-right">{Math.round(padding * 100)}%</span>
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -263,23 +261,45 @@ function App() {
               />
             </div>
 
-            {/* Blur strength slider */}
-            <div className="card">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-semibold">模糊強度</label>
-                <span className="text-sm text-[var(--text-muted)]">{blurStrength}</span>
+            {/* Blur strength + padding sliders */}
+            <div className="card space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-semibold">模糊強度</label>
+                  <span className="text-sm text-[var(--text-muted)]">{blurStrength}</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="50"
+                  value={blurStrength}
+                  onChange={(e) => setBlurStrength(Number(e.target.value))}
+                  className="w-full accent-[var(--primary)]"
+                />
+                <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+                  <span>輕微</span>
+                  <span>強烈</span>
+                </div>
               </div>
-              <input
-                type="range"
-                min="5"
-                max="50"
-                value={blurStrength}
-                onChange={(e) => setBlurStrength(Number(e.target.value))}
-                className="w-full accent-[var(--primary)]"
-              />
-              <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-                <span>輕微</span>
-                <span>強烈</span>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-semibold">面部框擴展 (padding)</label>
+                  <span className="text-sm text-[var(--text-muted)]">{Math.round(padding * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="0.6"
+                  step="0.05"
+                  value={padding}
+                  onChange={(e) => setPadding(Number(e.target.value))}
+                  className="w-full accent-[var(--primary)]"
+                />
+                <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+                  <span>貼面</span>
+                  <span>寬鬆</span>
+                </div>
               </div>
             </div>
 
@@ -293,7 +313,7 @@ function App() {
                 disabled={selectedIds.size === 0}
                 className="btn-primary"
               >
-                🎭 模糊處理（YuNet 會重新偵測所有面部）
+                🎭 模糊處理已選嘅 {selectedIds.size} 個面部
               </button>
             </div>
 

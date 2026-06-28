@@ -10,6 +10,13 @@ export interface FaceDetection {
   confidence: number;
 }
 
+export interface FaceRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface BlurRegion {
   x: number;
   y: number;
