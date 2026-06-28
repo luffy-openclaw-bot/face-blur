@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Python venv
+.venv/
+**/.venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+**/dist/
+
+# Uploads (temporary)
+uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test output
+output_*.jpg
