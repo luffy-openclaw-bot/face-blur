@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { FaceDetection } from '../types';
+import type { FaceDetection, FaceMatch, MatchAction } from '../types';
 
 interface DetectionCanvasProps {
   imageUrl: string;
@@ -7,6 +7,8 @@ interface DetectionCanvasProps {
   imageHeight: number;
   detections: FaceDetection[];
   selectedIds: Set<number>;
+  matchResults?: FaceMatch[];
+  referenceActions?: Record<string, MatchAction>;
   onToggleDetection: (id: number) => void;
 }
 
@@ -16,6 +18,8 @@ export function DetectionCanvas({
   imageHeight,
   detections,
   selectedIds,
+  matchResults = [],
+  referenceActions = {},
   onToggleDetection,
 }: DetectionCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -64,6 +68,12 @@ export function DetectionCanvas({
   const scaleX = canvasSize.width / imageWidth;
   const scaleY = canvasSize.height / imageHeight;
 
+  // Build a map from faceIndex to match info
+  const matchMap = new Map<number, FaceMatch>();
+  for (const m of matchResults) {
+    matchMap.set(m.faceIndex, m);
+  }
+
   return (
     <div className="relative inline-block" style={{ width: canvasSize.width, height: canvasSize.height }}>
       <canvas
@@ -76,15 +86,38 @@ export function DetectionCanvas({
       {/* Face detection overlay boxes */}
       {detections.map((detection) => {
         const isSelected = selectedIds.has(detection.id);
+        const match = matchMap.get(detection.id);
         const boxX = detection.bbox.x * scaleX;
         const boxY = detection.bbox.y * scaleY;
         const boxW = detection.bbox.width * scaleX;
         const boxH = detection.bbox.height * scaleY;
 
+        // Determine border color based on match status
+        let borderColor = isSelected ? 'border-red-500' : 'border-green-500';
+        let bgColor = isSelected ? 'bg-red-500' : 'bg-green-500';
+        let label = `面部 ${detection.id + 1}`;
+        let icon = isSelected ? ' 🔒' : '';
+
+        if (match && match.isMatch) {
+          const action = match.matchedRef ? referenceActions[match.matchedRef] : undefined;
+          if (action === 'exclude') {
+            borderColor = 'border-green-400';
+            bgColor = 'bg-green-400';
+            icon = ' ✅';
+          } else {
+            borderColor = 'border-orange-500';
+            bgColor = 'bg-orange-500';
+            icon = ' 🔒';
+          }
+          label = `面部 ${detection.id + 1} → ${match.matchedRef || '?'}`;
+        }
+
         return (
           <div
             key={detection.id}
-            className={`detection-box ${isSelected ? 'selected' : 'unselected'}`}
+            className={`absolute border-2 cursor-pointer transition-all hover:border-white ${borderColor} ${
+              isSelected ? 'selected' : 'unselected'
+            }`}
             style={{
               left: boxX,
               top: boxY,
@@ -92,11 +125,10 @@ export function DetectionCanvas({
               height: boxH,
             }}
             onClick={() => onToggleDetection(detection.id)}
-            title={`面部 ${detection.id + 1} — 置信度: ${Math.round(detection.confidence * 100)}%${isSelected ? ' (已選擇模糊)' : ' (按一下選擇模糊)'}`}
+            title={`${label} — 置信度: ${Math.round(detection.confidence * 100)}%${icon}`}
           >
-            <div className={`absolute -top-6 left-0 text-xs px-2 py-0.5 rounded whitespace-nowrap ${isSelected ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
-              面部 {detection.id + 1} ({Math.round(detection.confidence * 100)}%)
-              {isSelected ? ' 🔒' : ''}
+            <div className={`absolute -top-6 left-0 text-xs px-2 py-0.5 rounded whitespace-nowrap ${bgColor} text-white`}>
+              {label} ({Math.round(detection.confidence * 100)}%){icon}
             </div>
           </div>
         );

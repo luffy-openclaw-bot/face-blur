@@ -6,6 +6,10 @@ node_modules/
 .venv/
 **/.venv/
 
+# Python cache
+__pycache__/
+**/__pycache__/
+
 # Environment
 .env
 .env.local
@@ -33,4 +37,7 @@ uploads/
 npm-debug.log*
 
 # Test output
-output_*.jpg__pycache__/
+output_*.jpg
+
+# Large model files (download separately)
+backend/scripts/face_recognition_sface.onnx

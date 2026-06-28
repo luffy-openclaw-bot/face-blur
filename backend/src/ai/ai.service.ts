@@ -39,6 +39,48 @@ export interface DetectResult {
   }>;
 }
 
+export interface FaceCrop {
+  id: number;
+  bbox: { x: number; y: number; width: number; height: number };
+  confidence: number;
+  cropBase64: string;
+}
+
+export interface CropResult {
+  width: number;
+  height: number;
+  faces: FaceCrop[];
+}
+
+export interface FaceEmbedding {
+  embedding: number[];
+  embeddingDim: number;
+  faceBbox: { x: number; y: number; width: number; height: number };
+  faceCropBase64: string;
+}
+
+export interface FaceMatch {
+  faceIndex: number;
+  bbox: { x: number; y: number; width: number; height: number };
+  confidence: number;
+  matchedRef: string | null;
+  matchScore: number;
+  isMatch: boolean;
+}
+
+export interface MatchResult {
+  width: number;
+  height: number;
+  facesDetected: number;
+  matches: FaceMatch[];
+  matchThreshold: number;
+}
+
+export interface RefFace {
+  refId: string;
+  embedding: number[];
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -92,8 +134,89 @@ export class AiService {
   }
 
   /**
+   * Detect faces and return cropped face images as base64.
+   */
+  async cropFaces(
+    imageFilePath: string,
+    threshold: number = 0.5,
+  ): Promise<CropResult> {
+    const { stdout } = await execFileAsync('python3', [
+      this.scriptPath,
+      'crop_faces',
+      imageFilePath,
+      '--threshold',
+      String(threshold),
+    ]);
+
+    return JSON.parse(stdout);
+  }
+
+  /**
+   * Extract face embedding from a reference face image.
+   */
+  async extractFaceEmbedding(
+    imageFilePath: string,
+    threshold: number = 0.5,
+  ): Promise<FaceEmbedding> {
+    const { stdout } = await execFileAsync('python3', [
+      this.scriptPath,
+      'extract_embedding',
+      imageFilePath,
+      '--threshold',
+      String(threshold),
+    ]);
+
+    const raw = JSON.parse(stdout);
+    return {
+      embedding: raw.embedding,
+      embeddingDim: raw.embedding_dim,
+      faceBbox: raw.face_bbox,
+      faceCropBase64: raw.face_crop_base64,
+    };
+  }
+
+  /**
+   * Match faces in a group photo against reference face embeddings.
+   */
+  async matchFaces(
+    imageFilePath: string,
+    refs: RefFace[],
+    threshold: number = 0.5,
+    matchThreshold: number = 0.4,
+  ): Promise<MatchResult> {
+    const refsJson = JSON.stringify(refs);
+
+    const { stdout } = await execFileAsync('python3', [
+      this.scriptPath,
+      'match_faces',
+      imageFilePath,
+      '--refs',
+      refsJson,
+      '--threshold',
+      String(threshold),
+      '--match-threshold',
+      String(matchThreshold),
+    ]);
+
+    const raw = JSON.parse(stdout);
+    return {
+      width: raw.width,
+      height: raw.height,
+      facesDetected: raw.faces_detected,
+      matches: raw.matches.map((m: any) => ({
+        faceIndex: m.face_index,
+        bbox: m.bbox,
+        confidence: m.confidence,
+        matchedRef: m.matched_ref,
+        matchScore: m.match_score,
+        isMatch: m.is_match,
+      })),
+      matchThreshold: raw.match_threshold,
+    };
+  }
+
+  /**
    * Blur ALL faces in an image using YuNet detection.
-   * Returns the output image buffer.
    */
   async blurFaces(
     imageFilePath: string,
@@ -118,17 +241,12 @@ export class AiService {
 
     const fs = await import('fs/promises');
     const buffer = await fs.readFile(outputPath);
-
-    // Clean up temp file
     await fs.unlink(outputPath).catch(() => {});
-
     return buffer;
   }
 
   /**
    * Blur SELECTED face regions only.
-   * Takes an array of face regions (from detection results) and blurs only those.
-   * Returns the output image buffer.
    */
   async blurSpecificFaces(
     imageFilePath: string,
@@ -154,10 +272,7 @@ export class AiService {
 
     const fs = await import('fs/promises');
     const buffer = await fs.readFile(outputPath);
-
-    // Clean up temp file
     await fs.unlink(outputPath).catch(() => {});
-
     return buffer;
   }
 

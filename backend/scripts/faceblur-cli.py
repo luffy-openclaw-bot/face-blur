@@ -1,23 +1,11 @@
 #!/usr/bin/env python3
 """
-FaceBlur Interactive CLI — Selective face blurring tool.
+FaceBlur Interactive CLI — Selective face blurring tool with face matching.
 
-Usage:
-  python3 faceblur-cli.py <input> <output> [--threshold 0.5] [--blur 25] [--padding 0.3] [--all]
-
-Modes:
-  --all       Blur ALL detected faces (non-interactive)
-  (default)  Interactive mode: show faces, let user choose which to blur
-
-Examples:
-  # Interactive mode — choose which faces to blur
-  python3 faceblur-cli.py photo.jpg blurred.jpg
-
-  # Blur all faces automatically
-  python3 faceblur-cli.py photo.jpg blurred.jpg --all
-
-  # Adjust detection threshold and blur strength
-  python3 faceblur-cli.py photo.jpg blurred.jpg --threshold 0.3 --blur 30 --padding 0.4
+Commands:
+  blur       Detect and blur faces (interactive or automatic)
+  extract    Extract face embedding from a reference image
+  match      Match faces against reference embeddings
 """
 
 import argparse
@@ -25,10 +13,9 @@ import json
 import os
 import sys
 
-# Import detect_blur functions
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
-from detect_blur import detect_faces, blur_regions
+from detect_blur import detect_faces, blur_regions, extract_embedding, match_faces
 
 
 def interactive_select(faces: list) -> list:
@@ -61,7 +48,6 @@ def interactive_select(faces: list) -> list:
     if selection == 'none' or selection == 'n' or selection == '':
         return []
 
-    # Parse comma-separated numbers
     try:
         indices = [int(x.strip()) - 1 for x in selection.split(',')]
         selected = []
@@ -76,40 +62,14 @@ def interactive_select(faces: list) -> list:
         return []
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="FaceBlur CLI — Selective face blurring tool",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Interactive mode — choose which faces to blur
-  python3 faceblur-cli.py photo.jpg blurred.jpg
-
-  # Blur all faces automatically
-  python3 faceblur-cli.py photo.jpg blurred.jpg --all
-
-  # Adjust detection threshold and blur strength
-  python3 faceblur-cli.py photo.jpg blurred.jpg --threshold 0.3 --blur 30 --padding 0.4
-        """,
-    )
-    parser.add_argument("input", help="Path to input image")
-    parser.add_argument("output", help="Path to output image")
-    parser.add_argument("--threshold", type=float, default=0.5, help="Detection confidence threshold (0-1, default: 0.5)")
-    parser.add_argument("--blur", type=int, default=25, help="Blur strength / Gaussian radius (5-50, default: 25)")
-    parser.add_argument("--padding", type=float, default=0.3, help="Padding ratio around face (0-0.6, default: 0.3)")
-    parser.add_argument("--all", action="store_true", help="Blur ALL detected faces (non-interactive)")
-    parser.add_argument("--min-size", type=float, default=0.0001, help="Min face size as fraction of image area")
-    parser.add_argument("--max-size", type=float, default=0.02, help="Max face size as fraction of image area")
-    parser.add_argument("--json", action="store_true", help="Output JSON result (for LLM function calling)")
-
-    args = parser.parse_args()
-
+def cmd_blur(args):
+    """Detect and blur faces."""
     # Step 1: Detect faces
     if not args.json:
         print(f"🔍 Detecting faces in: {args.input}")
 
     try:
-        result = detect_faces(args.input, args.threshold, args.min_size, args.max_size)
+        result = detect_faces(args.input, args.threshold)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -120,53 +80,171 @@ Examples:
     if not args.json:
         print(f"   Found {len(faces)} face(s) in {width}x{height} image")
 
-    # Step 2: Select faces to blur
-    if args.all:
-        selected_faces = faces
-    else:
-        selected_faces = interactive_select(faces)
+    # Step 2: Match against reference faces if provided
+    faces_to_blur = faces  # Default: all detected faces
 
-    if not selected_faces:
+    if args.ref:
+        refs = []
+        for ref_path in args.ref:
+            try:
+                emb = extract_embedding(ref_path, args.threshold)
+                refs.append({
+                    "ref_id": os.path.basename(ref_path).rsplit('.', 1)[0],
+                    "embedding": emb["embedding"],
+                })
+                if not args.json:
+                    print(f"   📎 Loaded reference: {os.path.basename(ref_path)}")
+            except Exception as e:
+                print(f"   ⚠️ Could not extract face from {ref_path}: {e}", file=sys.stderr)
+
+        if refs:
+            match_result = match_faces(
+                args.input, json.dumps(refs),
+                args.threshold, args.match_threshold,
+            )
+
+            if args.action == "blur":
+                faces_to_blur = [
+                    m["bbox"] if isinstance(m["bbox"], dict) else {"x": m["bbox"][0], "y": m["bbox"][1], "width": m["bbox"][2], "height": m["bbox"][3]}
+                    for m in match_result["matches"] if m["is_match"]
+                ]
+                if not args.json:
+                    print(f"   🎯 Matched {len(faces_to_blur)} face(s) for blurring")
+            elif args.action == "exclude":
+                faces_to_blur = [
+                    m["bbox"] if isinstance(m["bbox"], dict) else {"x": m["bbox"][0], "y": m["bbox"][1], "width": m["bbox"][2], "height": m["bbox"][3]}
+                    for m in match_result["matches"] if not m["is_match"]
+                ]
+                if not args.json:
+                    excluded_count = sum(1 for m in match_result["matches"] if m["is_match"])
+                    print(f"   ✅ Excluding {excluded_count} matched face(s), blurring the rest")
+
+    elif not args.all:
+        faces_to_blur = interactive_select(faces)
+
+    if not faces_to_blur:
         if args.json:
             print(json.dumps({
-                "input": args.input,
-                "output": None,
-                "width": width,
-                "height": height,
-                "faces_detected": len(faces),
-                "faces_blurred": 0,
+                "input": args.input, "output": None,
+                "width": width, "height": height,
+                "faces_detected": len(faces), "faces_blurred": 0,
                 "message": "No faces selected for blurring",
             }, indent=2))
         else:
             print("\n  No faces selected. Output file not created.")
         return
 
-    # Step 3: Blur selected faces
+    # Step 3: Blur
     if not args.json:
-        print(f"\n🎨 Blurring {len(selected_faces)} face(s)...")
+        print(f"\n🎨 Blurring {len(faces_to_blur)} face(s)...")
 
     try:
-        output = blur_regions(args.input, args.output, selected_faces, args.blur, args.padding)
+        output = blur_regions(args.input, args.output, faces_to_blur, args.blur, args.padding)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     if args.json:
-        # JSON output for LLM function calling
         print(json.dumps({
-            "input": args.input,
-            "output": args.output,
-            "width": width,
-            "height": height,
-            "faces_detected": len(faces),
-            "faces_blurred": len(selected_faces),
-            "blurred_regions": selected_faces,
-            "blur_strength": args.blur,
-            "padding": args.padding,
+            "input": args.input, "output": args.output,
+            "width": width, "height": height,
+            "faces_detected": len(faces), "faces_blurred": len(faces_to_blur),
+            "blurred_regions": faces_to_blur,
+            "blur_strength": args.blur, "padding": args.padding,
         }, indent=2))
     else:
         print(f"   ✅ Saved to: {args.output}")
-        print(f"   Blurred {len(selected_faces)} of {len(faces)} detected face(s)")
+        print(f"   Blurred {len(faces_to_blur)} of {len(faces)} detected face(s)")
+
+
+def cmd_extract(args):
+    """Extract face embedding from a reference image."""
+    try:
+        result = extract_embedding(args.input, args.threshold)
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            bbox = result["face_bbox"]
+            print(f"Face detected at ({bbox['x']}, {bbox['y']}) size {bbox['width']}x{bbox['height']}")
+            print(f"Embedding dimension: {result['embedding_dim']}")
+            print(f"Use this embedding for match_faces command")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_match(args):
+    """Match faces against reference embeddings."""
+    refs = []
+    for ref_path in args.ref:
+        with open(ref_path) as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                refs.extend(data)
+            else:
+                refs.append(data)
+
+    try:
+        result = match_faces(args.input, json.dumps(refs), args.threshold, args.match_threshold)
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"Detected {result['faces_detected']} faces")
+            for m in result['matches']:
+                status = f"→ {m['matched_ref']}" if m['is_match'] else "(no match)"
+                print(f"  Face {m['face_index']}: confidence {m['confidence']*100:.0f}%, "
+                      f"match score {m['match_score']:.2f} {status}")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="FaceBlur CLI — Selective face blurring with face matching",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # blur subcommand
+    p_blur = subparsers.add_parser("blur", help="Detect and blur faces")
+    p_blur.add_argument("input", help="Path to input image")
+    p_blur.add_argument("output", help="Path to output image")
+    p_blur.add_argument("--threshold", type=float, default=0.5, help="Detection threshold (0-1)")
+    p_blur.add_argument("--blur", type=int, default=25, help="Blur strength (5-50)")
+    p_blur.add_argument("--padding", type=float, default=0.3, help="Padding around face (0-0.6)")
+    p_blur.add_argument("--all", action="store_true", help="Blur ALL detected faces (non-interactive)")
+    p_blur.add_argument("--json", action="store_true", help="Output JSON result")
+    p_blur.add_argument("--ref", action="append", help="Reference face image (can specify multiple)")
+    p_blur.add_argument("--match-threshold", type=float, default=0.4, help="Match similarity threshold (0-1)")
+    p_blur.add_argument("--action", choices=["blur", "exclude"], default="blur",
+                        help="Action for matched faces: blur or exclude (default: blur)")
+
+    # extract subcommand
+    p_extract = subparsers.add_parser("extract", help="Extract face embedding from reference image")
+    p_extract.add_argument("input", help="Path to reference face image")
+    p_extract.add_argument("--threshold", type=float, default=0.5)
+    p_extract.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # match subcommand
+    p_match = subparsers.add_parser("match", help="Match faces against reference embeddings")
+    p_match.add_argument("input", help="Path to group photo")
+    p_match.add_argument("--ref", action="append", required=True,
+                         help="JSON file with face embedding (can specify multiple)")
+    p_match.add_argument("--threshold", type=float, default=0.5)
+    p_match.add_argument("--match-threshold", type=float, default=0.4)
+    p_match.add_argument("--json", action="store_true", help="Output as JSON")
+
+    args = parser.parse_args()
+
+    if args.command == "blur":
+        cmd_blur(args)
+    elif args.command == "extract":
+        cmd_extract(args)
+    elif args.command == "match":
+        cmd_match(args)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
