@@ -27,6 +27,8 @@ class BlurDto {
   threshold?: number;
   blurStrength?: number;
   padding?: number;
+  shape?: string;
+  feather?: number;
 }
 
 class BlurFacesDto {
@@ -34,6 +36,8 @@ class BlurFacesDto {
   faces!: FaceRegion[];
   blurStrength?: number;
   padding?: number;
+  shape?: string;
+  feather?: number;
 }
 
 class MatchFacesDto {
@@ -251,6 +255,8 @@ export class ImageController {
       threshold = 0.5,
       blurStrength = 25,
       padding = 0.3,
+      shape = 'oval',
+      feather = 0.3,
     } = body;
 
     if (!imageId) {
@@ -265,6 +271,8 @@ export class ImageController {
       threshold,
       blurStrength,
       padding,
+      shape,
+      feather,
     );
 
     res.set({
@@ -286,6 +294,8 @@ export class ImageController {
       faces,
       blurStrength = 25,
       padding = 0.3,
+      shape = 'oval',
+      feather = 0.3,
     } = body;
 
     if (!imageId) {
@@ -314,6 +324,8 @@ export class ImageController {
       faces,
       blurStrength,
       padding,
+      shape,
+      feather,
     );
 
     res.set({

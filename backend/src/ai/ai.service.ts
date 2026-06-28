@@ -223,6 +223,8 @@ export class AiService {
     threshold: number = 0.5,
     blurStrength: number = 25,
     padding: number = 0.3,
+    shape: string = 'oval',
+    feather: number = 0.3,
   ): Promise<Buffer> {
     const outputPath = imageFilePath + '.blurred.jpg';
 
@@ -231,12 +233,11 @@ export class AiService {
       'blur',
       imageFilePath,
       outputPath,
-      '--threshold',
-      String(threshold),
-      '--blur',
-      String(blurStrength),
-      '--padding',
-      String(padding),
+      '--threshold', String(threshold),
+      '--blur', String(blurStrength),
+      '--padding', String(padding),
+      '--shape', shape,
+      '--feather', String(feather),
     ]);
 
     const fs = await import('fs/promises');
@@ -253,6 +254,8 @@ export class AiService {
     faces: FaceRegion[],
     blurStrength: number = 25,
     padding: number = 0.3,
+    shape: string = 'oval',
+    feather: number = 0.3,
   ): Promise<Buffer> {
     const outputPath = imageFilePath + '.blurred.jpg';
     const regionsJson = JSON.stringify(faces);
@@ -262,12 +265,11 @@ export class AiService {
       'blur_regions',
       imageFilePath,
       outputPath,
-      '--regions',
-      regionsJson,
-      '--blur',
-      String(blurStrength),
-      '--padding',
-      String(padding),
+      '--regions', regionsJson,
+      '--blur', String(blurStrength),
+      '--padding', String(padding),
+      '--shape', shape,
+      '--feather', String(feather),
     ]);
 
     const fs = await import('fs/promises');

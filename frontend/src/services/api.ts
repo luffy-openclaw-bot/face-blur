@@ -95,11 +95,13 @@ export const api = {
     threshold: number = 0.5,
     blurStrength: number = 25,
     padding: number = 0.3,
+    shape: 'rect' | 'oval' = 'oval',
+    feather: number = 0.3,
   ): Promise<Blob> {
     const response = await fetch(`${API_BASE}/blur`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageId, threshold, blurStrength, padding }),
+      body: JSON.stringify({ imageId, threshold, blurStrength, padding, shape, feather }),
     });
     return handleResponse<Blob>(response);
   },
@@ -110,11 +112,13 @@ export const api = {
     faces: FaceRegion[],
     blurStrength: number = 25,
     padding: number = 0.3,
+    shape: 'rect' | 'oval' = 'oval',
+    feather: number = 0.3,
   ): Promise<Blob> {
     const response = await fetch(`${API_BASE}/blur-faces`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageId, faces, blurStrength, padding }),
+      body: JSON.stringify({ imageId, faces, blurStrength, padding, shape, feather }),
     });
     return handleResponse<Blob>(response);
   },

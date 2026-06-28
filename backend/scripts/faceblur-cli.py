@@ -139,7 +139,8 @@ def cmd_blur(args):
         print(f"\n🎨 Blurring {len(faces_to_blur)} face(s)...")
 
     try:
-        output = blur_regions(args.input, args.output, faces_to_blur, args.blur, args.padding)
+        output = blur_regions(args.input, args.output, faces_to_blur, args.blur, args.padding,
+                             args.shape, args.feather)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -219,6 +220,10 @@ def main():
     p_blur.add_argument("--match-threshold", type=float, default=0.4, help="Match similarity threshold (0-1)")
     p_blur.add_argument("--action", choices=["blur", "exclude"], default="blur",
                         help="Action for matched faces: blur or exclude (default: blur)")
+    p_blur.add_argument("--shape", choices=["rect", "oval"], default="oval",
+                        help="Blur shape: rect (rectangular) or oval (elliptical, default: oval)")
+    p_blur.add_argument("--feather", type=float, default=0.3,
+                        help="Feather amount for oval blur (0=hard edge, 0.6=soft, default: 0.3)")
 
     # extract subcommand
     p_extract = subparsers.add_parser("extract", help="Extract face embedding from reference image")

@@ -40,6 +40,8 @@ function App() {
   const [blurredBlob, setBlurredBlob] = useState<Blob | null>(null);
   const [blurStrength, setBlurStrength] = useState(25);
   const [padding, setPadding] = useState(0.3);
+  const [blurShape, setBlurShape] = useState<'rect' | 'oval'>('oval');
+  const [feather, setFeather] = useState(0.3);
   const [threshold, setThreshold] = useState(0.5);
   const [matchThreshold, setMatchThreshold] = useState(0.4);
 
@@ -195,6 +197,8 @@ function App() {
         selectedFaces,
         blurStrength,
         padding,
+        blurShape,
+        feather,
       );
 
       setBlurredBlob(blob);
@@ -205,7 +209,7 @@ function App() {
     } finally {
       setIsBlurring(false);
     }
-  }, [uploadData, detections, selectedIds, blurStrength, padding]);
+  }, [uploadData, detections, selectedIds, blurStrength, padding, blurShape, feather]);
 
   const handleDownload = useCallback(() => {
     if (!blurredBlob || !uploadData) return;
@@ -517,6 +521,56 @@ function App() {
                   <span>貼面</span><span>寬鬆</span>
                 </div>
               </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-semibold">模糊形狀</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setBlurShape('oval')}
+                      className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                        blurShape === 'oval'
+                          ? 'bg-[var(--primary)] text-white'
+                          : 'bg-[var(--bg-dark)] text-[var(--text-muted)] hover:bg-[var(--bg-card)]'
+                      }`}
+                    >
+                      ⬮ 橢圓形
+                    </button>
+                    <button
+                      onClick={() => setBlurShape('rect')}
+                      className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                        blurShape === 'rect'
+                          ? 'bg-[var(--primary)] text-white'
+                          : 'bg-[var(--bg-dark)] text-[var(--text-muted)] hover:bg-[var(--bg-card)]'
+                      }`}
+                    >
+                      ◼ 矩形
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {blurShape === 'oval'
+                    ? '橢圓形更貼合面部輪廓，邊緣自然漸變'
+                    : '矩形模糊，邊界分明'}
+                </p>
+              </div>
+
+              {blurShape === 'oval' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-semibold">羽化程度 (feather)</label>
+                    <span className="text-sm text-[var(--text-muted)]">{Math.round(feather * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="0.6" step="0.05" value={feather}
+                    onChange={(e) => setFeather(Number(e.target.value))}
+                    className="w-full accent-[var(--primary)]"
+                  />
+                  <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+                    <span>硬邊</span><span>柔滑漸變</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}

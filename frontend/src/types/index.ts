@@ -10,6 +10,13 @@ export interface FaceDetection {
   confidence: number;
 }
 
+export interface BlurParams {
+  blurStrength?: number;
+  padding?: number;
+  shape?: 'rect' | 'oval';
+  feather?: number;
+}
+
 export interface FaceRegion {
   x: number;
   y: number;
