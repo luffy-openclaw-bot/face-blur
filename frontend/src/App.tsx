@@ -42,6 +42,7 @@ function App() {
   const [padding, setPadding] = useState(0.3);
   const [blurShape, setBlurShape] = useState<'rect' | 'oval'>('oval');
   const [feather, setFeather] = useState(0.3);
+  const [ovalScale, setOvalScale] = useState(0.75);
   const [threshold, setThreshold] = useState(0.5);
   const [matchThreshold, setMatchThreshold] = useState(0.4);
 
@@ -199,6 +200,7 @@ function App() {
         padding,
         blurShape,
         feather,
+        ovalScale,
       );
 
       setBlurredBlob(blob);
@@ -209,7 +211,7 @@ function App() {
     } finally {
       setIsBlurring(false);
     }
-  }, [uploadData, detections, selectedIds, blurStrength, padding, blurShape, feather]);
+  }, [uploadData, detections, selectedIds, blurStrength, padding, blurShape, feather, ovalScale]);
 
   const handleDownload = useCallback(() => {
     if (!blurredBlob || !uploadData) return;
@@ -554,6 +556,23 @@ function App() {
                     : '矩形模糊，邊界分明'}
                 </p>
               </div>
+
+              {blurShape === 'oval' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-semibold">橢圓大小 (scale)</label>
+                    <span className="text-sm text-[var(--text-muted)]">{Math.round(ovalScale * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min="0.4" max="1.0" step="0.05" value={ovalScale}
+                    onChange={(e) => setOvalScale(Number(e.target.value))}
+                    className="w-full accent-[var(--primary)]"
+                  />
+                  <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+                    <span>細（只遮眼鼻口）</span><span>大（遮整個面）</span>
+                  </div>
+                </div>
+              )}
 
               {blurShape === 'oval' && (
                 <div>

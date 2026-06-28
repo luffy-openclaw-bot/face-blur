@@ -309,12 +309,14 @@ def apply_rect_blur(img: Image.Image, x: int, y: int, w: int, h: int,
 
 def blur_regions(image_path: str, output_path: str, regions: list,
                  blur_strength: int = 25, padding: float = 0.3,
-                 shape: str = "oval", feather: float = 0.3):
+                 shape: str = "oval", feather: float = 0.3, scale: float = 0.75):
     """Apply blur to specific face regions in an image.
 
     Args:
         shape: 'rect' for rectangular blur (legacy) or 'oval' for elliptical feathered blur
         feather: Feather amount (0=hard edge, 0.6=very soft transition). Only used with 'oval'.
+        scale: Oval size as fraction of face bbox (0.4=tiny, 0.75=default, 1.0=full face).
+               Only used with 'oval'. Smaller values avoid covering adjacent faces.
     """
     pil_img = Image.open(image_path).copy()
     w, h = pil_img.size
@@ -323,15 +325,19 @@ def blur_regions(image_path: str, output_path: str, regions: list,
     for region in regions:
         fx, fy = region["x"], region["y"]
         fw, fh = region["width"], region["height"]
-        pad_x = int(fw * padding)
-        pad_y = int(fh * padding)
 
         if shape == "oval":
-            # Calculate center and semi-axes for the oval
+            # Scale the face bbox to make the oval smaller
+            scaled_fw = int(fw * scale)
+            scaled_fh = int(fh * scale)
+            # Center the scaled region within the original bbox
             cx = fx + fw // 2
             cy = fy + fh // 2
-            rx = (fw // 2) + pad_x
-            ry = (fh // 2) + pad_y
+            # Add padding based on the scaled size
+            pad_x = int(scaled_fw * padding)
+            pad_y = int(scaled_fh * padding)
+            rx = (scaled_fw // 2) + pad_x
+            ry = (scaled_fh // 2) + pad_y
             pil_img = apply_oval_blur(pil_img, cx, cy, rx, ry, blur_strength, feather)
         else:
             # Legacy rectangular blur
@@ -346,11 +352,11 @@ def blur_regions(image_path: str, output_path: str, regions: list,
 def blur_faces(image_path: str, output_path: str, threshold: float = 0.5,
                blur_strength: int = 25, padding: float = 0.3,
                min_size: float = 0.0001, max_size: float = 0.02,
-               shape: str = "oval", feather: float = 0.3):
+               shape: str = "oval", feather: float = 0.3, scale: float = 0.75):
     """Detect faces and apply blur to each face region."""
     result = detect_faces(image_path, threshold, min_size, max_size)
     return blur_regions(image_path, output_path, result["faces"],
-                       blur_strength, padding, shape, feather)
+                       blur_strength, padding, shape, feather, scale)
 
 
 def main():
@@ -375,6 +381,8 @@ def main():
                         help="Blur shape: rect (rectangular) or oval (elliptical with feathered edges)")
     p_blur.add_argument("--feather", type=float, default=0.3,
                         help="Feather amount for oval blur (0=hard edge, 0.6=very soft)")
+    p_blur.add_argument("--scale", type=float, default=0.75,
+                        help="Oval size as fraction of face bbox (0.4=tiny, 0.75=default, 1.0=full face)")
     p_blur.add_argument("--min-size", type=float, default=0.0001)
     p_blur.add_argument("--max-size", type=float, default=0.02)
 
@@ -389,6 +397,8 @@ def main():
                           help="Blur shape: rect or oval")
     p_regions.add_argument("--feather", type=float, default=0.3,
                           help="Feather amount for oval blur (0=hard edge, 0.6=very soft)")
+    p_regions.add_argument("--scale", type=float, default=0.75,
+                          help="Oval size as fraction of face bbox (0.4=tiny, 0.75=default, 1.0=full face)")
 
     # crop_faces command
     p_crop = subparsers.add_parser("crop_faces", help="Detect faces and return cropped face images as base64")
@@ -421,13 +431,13 @@ def main():
         elif args.command == "blur":
             result = blur_faces(args.input, args.output, args.threshold, args.blur,
                                args.padding, args.min_size, args.max_size,
-                               args.shape, args.feather)
+                               args.shape, args.feather, args.scale)
             print(json.dumps(result, indent=2))
 
         elif args.command == "blur_regions":
             regions = json.loads(args.regions)
             result = blur_regions(args.input, args.output, regions, args.blur,
-                                 args.padding, args.shape, args.feather)
+                                 args.padding, args.shape, args.feather, args.scale)
             print(json.dumps(result, indent=2))
 
         elif args.command == "crop_faces":

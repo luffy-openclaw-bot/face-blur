@@ -29,6 +29,7 @@ class BlurDto {
   padding?: number;
   shape?: string;
   feather?: number;
+  scale?: number;
 }
 
 class BlurFacesDto {
@@ -38,6 +39,7 @@ class BlurFacesDto {
   padding?: number;
   shape?: string;
   feather?: number;
+  scale?: number;
 }
 
 class MatchFacesDto {
@@ -257,6 +259,7 @@ export class ImageController {
       padding = 0.3,
       shape = 'oval',
       feather = 0.3,
+      scale = 0.75,
     } = body;
 
     if (!imageId) {
@@ -273,6 +276,7 @@ export class ImageController {
       padding,
       shape,
       feather,
+      scale,
     );
 
     res.set({
@@ -296,6 +300,7 @@ export class ImageController {
       padding = 0.3,
       shape = 'oval',
       feather = 0.3,
+      scale = 0.75,
     } = body;
 
     if (!imageId) {
@@ -326,6 +331,7 @@ export class ImageController {
       padding,
       shape,
       feather,
+      scale,
     );
 
     res.set({

@@ -140,7 +140,7 @@ def cmd_blur(args):
 
     try:
         output = blur_regions(args.input, args.output, faces_to_blur, args.blur, args.padding,
-                             args.shape, args.feather)
+                             args.shape, args.feather, args.scale)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -224,6 +224,8 @@ def main():
                         help="Blur shape: rect (rectangular) or oval (elliptical, default: oval)")
     p_blur.add_argument("--feather", type=float, default=0.3,
                         help="Feather amount for oval blur (0=hard edge, 0.6=soft, default: 0.3)")
+    p_blur.add_argument("--scale", type=float, default=0.75,
+                        help="Oval size as fraction of face bbox (0.4=tiny, 0.75=default, 1.0=full face)")
 
     # extract subcommand
     p_extract = subparsers.add_parser("extract", help="Extract face embedding from reference image")

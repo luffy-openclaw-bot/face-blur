@@ -225,6 +225,7 @@ export class AiService {
     padding: number = 0.3,
     shape: string = 'oval',
     feather: number = 0.3,
+    scale: number = 0.75,
   ): Promise<Buffer> {
     const outputPath = imageFilePath + '.blurred.jpg';
 
@@ -238,6 +239,7 @@ export class AiService {
       '--padding', String(padding),
       '--shape', shape,
       '--feather', String(feather),
+      '--scale', String(scale),
     ]);
 
     const fs = await import('fs/promises');
@@ -256,6 +258,7 @@ export class AiService {
     padding: number = 0.3,
     shape: string = 'oval',
     feather: number = 0.3,
+    scale: number = 0.75,
   ): Promise<Buffer> {
     const outputPath = imageFilePath + '.blurred.jpg';
     const regionsJson = JSON.stringify(faces);
@@ -270,6 +273,7 @@ export class AiService {
       '--padding', String(padding),
       '--shape', shape,
       '--feather', String(feather),
+      '--scale', String(scale),
     ]);
 
     const fs = await import('fs/promises');

@@ -15,6 +15,7 @@ export interface BlurParams {
   padding?: number;
   shape?: 'rect' | 'oval';
   feather?: number;
+  scale?: number;
 }
 
 export interface FaceRegion {
